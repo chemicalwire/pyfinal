@@ -3,8 +3,8 @@ from email.message import EmailMessage
 from fpdf import FPDF
 from datetime import datetime
 
-ListOfSercvices = ["Cutting", "Cutting Shadow", "Color", "Color Shadow", "Theory"]
-ListOfTeachers = ["Cut", "Styling", "Single Process", "Balayage", "Highlights", "Dollhead", "Absent"]
+#ListOfTeachers = ["Cutting", "Cutting Shadow", "Color", "Color Shadow", "Theory"]
+#ListOfServices = ["Cut", "Styling", "Single Process", "Balayage", "Highlights", "Dollhead", "Absent"]
 
 PROJECT_PASSWORD = os.getenv("PROJECT_PASSWORD")
 PROJECT_USERNAME = os.getenv("PROJECT_EMAIL")
@@ -65,13 +65,11 @@ def main():
             sys.exit(f"Incorrect usage.\nCorrect usage: 'attendance [-r|--resume]'\nUse -r or --resume to resume a crashed or terminated session.")
     except EOFError:
         clearTerminal()
-        # save data in memory to CSV just in case
-        rewriteCSV(attendance)
-        print(f"\nGoodbye! See you soon!!!!")
+        # print(f"\nGoodbye! See you soon!!!!")
      
     # cleanup
     outfile.close
-    clearTerminal()
+    # clearTerminal()
     print(f"\nGoodbye! See you soon!!!!")
     
 def mainMenu(attendance:list = [], logo:str = ""):
@@ -105,17 +103,18 @@ def mainMenu(attendance:list = [], logo:str = ""):
             case 1: # add a teacher
                 teacher:dict = addEntry(0)
                 if teacher:
-                    writeRow(teacher)   # add to CSV in case of crash
+                    #writeRow(teacher)   # add to CSV in case of crash
                     attendance.append(teacher)  # add to the local copy in memory]
-                    #rewriteCSV()
+                    rewriteCSV(attendance)
             case 2: # add a student
                 student:dict = addEntry(1)
                 if student:
-                    writeRow(student)
+                    # writeRow(student)
                     attendance.append(student)
-                    #rewriteCSV()
+                    rewriteCSV(attendance)
             case 3: # Delete an entry
-                deleteEntry(attendance, logo)
+                if deleteEntry(attendance, logo):
+                    rewriteCSV(attendance)
             case 4: # create pdf and email
                 if attendance == []:
 
@@ -167,15 +166,17 @@ def addEntry(entry_type: int)->dict:
         return None       
     
 def deleteEntry(attendance: list, logo:str):
-    clearTerminal()
-    print(logo + f"\n")
-    
+
     if (length := len(attendance)) == 0:
         input("There are no entries to delete. Press enter to continue")
         return
     
+    clearTerminal()
+    print(logo + f"\n")
+        
     print(getRoster(attendance))
-    attendance.sort(key=lambda x: int(x['role']))   #sort the list so that it is in the same order as the display, just in case
+   
+    # attendance.sort(key=lambda x: int(x['role']))   #sort the list so that it is in the same order as the display, just in case
     
     try:
         toDelete = getInt("Which entry would you like to delete? (press ctl-d to cancel) ", [1, length+1])
@@ -184,19 +185,21 @@ def deleteEntry(attendance: list, logo:str):
     
     if not (toDelete in range(1,length+1)):
         input("Invalid entry. Press enter to continue")
-        return 
+        return False
     else:
-        if yesno(f"Are you sure you want to remove {attendance[toDelete - 1]['name']} y/n ") == True:
-            del attendance[toDelete - 1]
-            rewriteCSV(attendance)  # rewrite the CSV
-            return 
+        if yesno(f"Are you sure you want to remove {attendance[toDelete - 1]['name']}? y/n ") == True:
+            attendance.pop(toDelete - 1)
+            # rewriteCSV(attendance)  # rewrite the CSV - mooved to main loop
+            return True
 
 def getRoster(attendance: list, nums=True)->str:
     ROLE = ["Teacher", "Student"]
     i = 1
     attendance_string = ""
-
-    for row in sorted(attendance, key=lambda x: int(x['role'])): # attendance:
+    
+    attendance.sort(key=lambda x: int(x['role']))
+    
+    for row in attendance:
         if nums:
             attendance_string += f"{i}. {row['name']} - {ROLE[int(row['role'])]} - {row['service']}\n"
         else:
@@ -263,10 +266,10 @@ def emailForm()->bool:
         input(f"There was an error emailing the file.\n{e}")
         return
  
-def writeRow(row: dict):
-    global outfile
-    writer = csv.DictWriter(outfile, fieldnames=["date", "role", "name", "service"])
-    writer.writerow(row)
+# def writeRow(row: dict):
+#     global outfile
+#     writer = csv.DictWriter(outfile, fieldnames=["date", "role", "name", "service"])
+#     writer.writerow(row)
 
 def Initialize():
     global outfile
@@ -294,7 +297,8 @@ def rewriteCSV(attendance:list):
     Initialize()
     writer = csv.DictWriter(outfile, fieldnames=["date", "role", "name", "service"])
     for line in attendance:
-        writer.writerow(line)
+        if line["date"] != "": # sometimes when deleting a row it leaves an artifact that gets written into the CSV, I cannot figure out why so this is my hacky workaround
+            writer.writerow(line)
     return True
 
 def printLogo()->str:
